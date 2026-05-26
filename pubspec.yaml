@@ -1,0 +1,31 @@
+name: wash_car_app
+description: When to wash a car widget app
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  geolocator: ^11.0.0
+  http: ^1.2.0
+  shared_preferences: ^2.2.2
+  home_widget: ^0.6.0
+  google_mobile_ads: ^5.0.0
+  firebase_core: ^3.0.0
+  firebase_analytics: ^11.0.0
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  generate: true
