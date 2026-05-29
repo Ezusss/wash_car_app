@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
 
 # Sensitive files — do not commit
 google-services.json
@@ -64,3 +65,6 @@ widget_log.txt
 
 # Flutter plugins list (auto-generated)
 .flutter-plugins
+
+# Personal files not for repo
+FOR_FRIEND.md

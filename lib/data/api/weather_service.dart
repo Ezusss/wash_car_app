@@ -6,7 +6,7 @@ import 'package:wash_car_app/data/models/weather_model.dart';
 
 class WeatherService {
   final String apiKey;
-  static const String baseUrl = 'https://api.weatherapi.com/v1';
+  static const String baseUrl = 'https://washcarbackend-production.up.railway.app/api';
 
   WeatherService({String? apiKey}) : apiKey = apiKey ?? kWeatherApiKey;
 
