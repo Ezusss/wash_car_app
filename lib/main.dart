@@ -9,6 +9,8 @@ import 'package:wash_car_app/l10n/app_localizations.dart';
 import 'package:wash_car_app/presentation/providers/weather_providers.dart';
 import 'package:wash_car_app/presentation/screens/home_screen.dart';
 import 'package:wash_car_app/presentation/screens/settings_screen.dart';
+import 'package:wash_car_app/services/background_service.dart';
+import 'package:wash_car_app/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,14 @@ void main() async {
 
   // Load persisted settings to provide as initial provider values
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize notification and background task infrastructure
+  await NotificationService.initialize();
+  await BackgroundService.initialize();
+  if (prefs.getBool('notifications_enabled') ?? false) {
+    // Restore the daily task in case it was lost after app update/reinstall.
+    await BackgroundService.scheduleDaily();
+  }
 
   runApp(
     ProviderScope(

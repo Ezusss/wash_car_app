@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wash_car_app/l10n/app_localizations.dart';
 import 'package:wash_car_app/presentation/providers/weather_providers.dart';
+import 'package:wash_car_app/services/background_service.dart';
+import 'package:wash_car_app/services/notification_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -23,6 +25,26 @@ class SettingsScreen extends ConsumerWidget {
       await prefs.setString(key, value);
     } else {
       await prefs.remove(key);
+    }
+  }
+
+  Future<void> _handleNotificationToggle(WidgetRef ref, bool value) async {
+    // Optimistically update the switch.
+    ref.read(notificationsEnabledProvider.notifier).state = value;
+
+    if (value) {
+      final granted = await NotificationService.requestPermission();
+      if (!granted) {
+        // Permission denied — revert.
+        ref.read(notificationsEnabledProvider.notifier).state = false;
+        await _saveBool('notifications_enabled', false);
+        return;
+      }
+      await _saveBool('notifications_enabled', true);
+      await BackgroundService.scheduleDaily();
+    } else {
+      await _saveBool('notifications_enabled', false);
+      await BackgroundService.cancel();
     }
   }
 
@@ -111,11 +133,17 @@ class SettingsScreen extends ConsumerWidget {
                 title: Text(l10n.notifications),
                 subtitle: Text(l10n.notificationsSubtitle),
                 value: notificationsEnabled,
-                onChanged: (value) {
-                  ref.read(notificationsEnabledProvider.notifier).state = value;
-                  _saveBool('notifications_enabled', value);
-                },
+                onChanged: (value) => _handleNotificationToggle(ref, value),
               ),
+              if (notificationsEnabled)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: const Text('Send test notification (~10 s)'),
+                    onPressed: () => BackgroundService.triggerNow(),
+                  ),
+                ),
               const SizedBox(height: 24),
 
               // About Section
