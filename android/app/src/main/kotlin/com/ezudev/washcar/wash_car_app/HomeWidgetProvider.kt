@@ -1,10 +1,11 @@
 package com.ezudev.washcar.wash_car_app
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.graphics.Color
 import android.widget.RemoteViews
-import android.util.Log
 
 class HomeWidgetProvider : AppWidgetProvider() {
 
@@ -16,122 +17,39 @@ class HomeWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.home_widget_layout)
 
-            // Get stored data from HomeWidget plugin preferences
             val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
-            // Read raw values and coerce to expected types to match HomeWidgetPlugin storage
             val all = prefs.all
 
+            val status = all["status"]?.toString() ?: "unknown"
             val scoreAny = all["score"]
-            var score = when (scoreAny) {
+            val score = when (scoreAny) {
                 is Int -> scoreAny
                 is Long -> scoreAny.toInt()
-                is String -> scoreAny.toIntOrNull() ?: 0
-                else -> 0
+                is String -> scoreAny.toIntOrNull() ?: -1
+                else -> -1
             }
 
-            var status = all["status"]?.toString() ?: "unknown"
-            var recommendation = all["recommendation"]?.toString() ?: "Loading..."
-            var location = all["location"]?.toString() ?: "Unknown"
+            val scoreText = if (score >= 0) "$score" else "—"
 
-            val tempAny = all["tempC"]
-            var tempC = when (tempAny) {
-                is Float -> tempAny
-                is Double -> tempAny.toFloat()
-                is Long -> java.lang.Double.longBitsToDouble(tempAny).toFloat()
-                is Int -> tempAny.toFloat()
-                is String -> tempAny.toFloatOrNull() ?: 0f
-                else -> 0f
+            val bgColor = when (status) {
+                "safe"    -> Color.parseColor("#2E7D32") // green 800
+                "warning" -> Color.parseColor("#E65100") // orange 900
+                "unsafe"  -> Color.parseColor("#B71C1C") // red 900
+                else      -> Color.parseColor("#37474F") // blue-grey 800
             }
 
-            val humidityAny = all["humidity"]
-            var humidity = when (humidityAny) {
-                is Int -> humidityAny
-                is Long -> humidityAny.toInt()
-                is String -> humidityAny.toIntOrNull() ?: 0
-                else -> 0
+            views.setInt(R.id.widget_root, "setBackgroundColor", bgColor)
+            views.setTextViewText(R.id.widget_score, scoreText)
+
+            // Tap opens the app
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            if (launchIntent != null) {
+                val pi = PendingIntent.getActivity(
+                    context, 0, launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widget_root, pi)
             }
-
-            // Diagnostic logs: show raw prefs and parsed values
-            try {
-                Log.d("HomeWidgetProvider", "prefs all: $all")
-                Log.d("HomeWidgetProvider", "parsed score=$score, status=$status, recommendation=$recommendation, location=$location, tempC=$tempC, humidity=$humidity")
-            } catch (e: Exception) {
-                Log.e("HomeWidgetProvider", "Error logging prefs", e)
-            }
-
-            // If values look like missing/loading, try fallback shared prefs names
-            val isMissing = (recommendation == "Loading..." || score == 0)
-            var prefsSource = "HomeWidgetPreferences"
-            if (isMissing) {
-                val fallbackNames = listOf("FlutterSharedPreferences", "${context.packageName}_preferences", "home_widget_preference")
-                for (name in fallbackNames) {
-                    try {
-                        val alt = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-                        if (alt != null && alt.all.isNotEmpty()) {
-                            val altAll = alt.all
-                            if (altAll.containsKey("recommendation") || altAll.containsKey("score")) {
-                                // parse same way as above
-                                val altScoreAny = altAll["score"]
-                                val altScore = when (altScoreAny) {
-                                    is Int -> altScoreAny
-                                    is Long -> altScoreAny.toInt()
-                                    is String -> altScoreAny.toIntOrNull() ?: score
-                                    else -> score
-                                }
-                                val altRecommendation = altAll["recommendation"]?.toString() ?: recommendation
-                                val altStatus = altAll["status"]?.toString() ?: status
-                                val altLocation = altAll["location"]?.toString() ?: location
-                                val altTempAny = altAll["tempC"]
-                                val altTemp = when (altTempAny) {
-                                    is Float -> altTempAny
-                                    is Double -> altTempAny.toFloat()
-                                    is Long -> java.lang.Double.longBitsToDouble(altTempAny).toFloat()
-                                    is Int -> altTempAny.toFloat()
-                                    is String -> altTempAny.toFloatOrNull() ?: tempC
-                                    else -> tempC
-                                }
-                                val altHumidityAny = altAll["humidity"]
-                                val altHumidity = when (altHumidityAny) {
-                                    is Int -> altHumidityAny
-                                    is Long -> altHumidityAny.toInt()
-                                    is String -> altHumidityAny.toIntOrNull() ?: humidity
-                                    else -> humidity
-                                }
-
-                                // override values
-                                if (altAll.containsKey("score")) score = altScore
-                                if (altAll.containsKey("recommendation")) recommendation = altRecommendation
-                                if (altAll.containsKey("status")) status = altStatus
-                                if (altAll.containsKey("location")) location = altLocation
-                                tempC = altTemp
-                                humidity = altHumidity
-                                prefsSource = name
-                                Log.d("HomeWidgetProvider", "Used fallback prefs: $name, altAll=$altAll")
-                                break
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.w("HomeWidgetProvider", "Cannot read fallback prefs $name", e)
-                    }
-                }
-            }
-
-            Log.d("HomeWidgetProvider", "Final values from $prefsSource: score=$score, recommendation=$recommendation, status=$status, location=$location, tempC=$tempC, humidity=$humidity")
-
-            // Update widget views
-            views.setTextViewText(R.id.widget_recommendation, recommendation)
-            views.setTextViewText(R.id.widget_score, "$score/100")
-            views.setTextViewText(R.id.widget_location, location)
-            views.setTextViewText(R.id.widget_details, "Temp: ${String.format("%.1f", tempC)}°C | Humidity: $humidity%")
-
-            // Set status color based on status
-            val color = when (status) {
-                "safe" -> context.resources.getColor(android.R.color.holo_green_dark, null)
-                "warning" -> context.resources.getColor(android.R.color.holo_orange_dark, null)
-                "unsafe" -> context.resources.getColor(android.R.color.holo_red_dark, null)
-                else -> context.resources.getColor(android.R.color.darker_gray, null)
-            }
-            views.setInt(R.id.widget_status_indicator, "setBackgroundColor", color)
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
