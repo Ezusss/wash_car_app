@@ -4,7 +4,7 @@ import 'package:wash_car_app/core/errors.dart';
 import 'package:wash_car_app/data/models/weather_model.dart';
 
 class WeatherCache {
-  static const String _weatherKey = 'weather_cache_v2';
+  static const String _weatherKey = 'weather_cache_v3';
   static const String _lastUpdateKey = 'weather_last_update';
   static const String _selectedCityKey = 'selected_city';
 

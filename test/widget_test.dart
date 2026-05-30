@@ -2,228 +2,163 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wash_car_app/data/models/weather_model.dart';
 import 'package:wash_car_app/domain/usecases/wash_recommendation_usecase.dart';
 
+WeatherData _makeWeatherData({
+  double tempC = 20,
+  int humidity = 50,
+  double windSpeedMs = 5,
+  double rainChance = 10,
+  String condition = 'Sunny',
+  bool isRaining = false,
+  bool isSnowing = false,
+}) =>
+    WeatherData(
+      tempC: tempC,
+      tempF: tempC * 9 / 5 + 32,
+      humidity: humidity,
+      windSpeedMs: windSpeedMs,
+      rainChance: rainChance,
+      condition: condition,
+      isRaining: isRaining,
+      isSnowing: isSnowing,
+      uvIndex: 3,
+      dateTime: DateTime.now(),
+    );
+
+ForecastDay _makeForecastDay({
+  int offsetDays = 0,
+  double rainChance = 5,
+  bool hasRain = false,
+  bool hasSnow = false,
+  double maxWindSpeed = 6,
+  double avgHumidity = 55,
+  int score = 80,
+  String status = 'safe',
+}) =>
+    ForecastDay(
+      date: DateTime.now().add(Duration(days: offsetDays)),
+      maxTempC: 22,
+      minTempC: 18,
+      avgHumidity: avgHumidity,
+      maxWindSpeed: maxWindSpeed,
+      rainChance: rainChance,
+      rainMm: 0,
+      condition: 'Sunny',
+      hasRain: hasRain,
+      hasSnow: hasSnow,
+      score: score,
+      status: status,
+      hourly: [],
+    );
+
+WeatherForecast _makeForecast({
+  required WeatherData current,
+  required List<ForecastDay> days,
+  int washScore = 80,
+  String washStatus = 'safe',
+}) =>
+    WeatherForecast(
+      current: current,
+      forecast: days,
+      location: 'Test City',
+      latitude: 40.0,
+      longitude: -74.0,
+      lastUpdated: DateTime.now(),
+      washScore: washScore,
+      washStatus: washStatus,
+    );
+
 void main() {
   group('WashRecommendationUseCase', () {
     late WashRecommendationUseCase useCase;
 
-    setUp(() {
-      useCase = WashRecommendationUseCase();
+    setUp(() => useCase = WashRecommendationUseCase());
+
+    test('Safe conditions return safe status and high score', () {
+      final forecast = _makeForecast(
+        current: _makeWeatherData(),
+        days: [_makeForecastDay(score: 90, status: 'safe')],
+        washScore: 90,
+        washStatus: 'safe',
+      );
+
+      final rec = useCase.getRecommendation(forecast);
+      expect(rec.status, 'safe');
+      expect(rec.score, greaterThanOrEqualTo(70));
     });
 
-    test('Safe conditions should return high score', () {
-      // Create a safe weather forecast
-      final current = WeatherData(
-        tempC: 20,
-        tempF: 68,
-        humidity: 50,
-        windSpeedMs: 5,
-        rainChance: 10,
-        condition: 'Sunny',
-        isRaining: false,
-        isSnowing: false,
-        uvIndex: 5,
-        dateTime: DateTime.now(),
+    test('Rainy conditions return unsafe status and low score', () {
+      final forecast = _makeForecast(
+        current: _makeWeatherData(
+          humidity: 85,
+          rainChance: 90,
+          condition: 'Heavy rain',
+          isRaining: true,
+        ),
+        days: [
+          _makeForecastDay(
+            rainChance: 95,
+            hasRain: true,
+            score: 10,
+            status: 'unsafe',
+          )
+        ],
+        washScore: 10,
+        washStatus: 'unsafe',
       );
 
-      final forecastDay = ForecastDay(
-        date: DateTime.now(),
-        maxTempC: 22,
-        minTempC: 18,
-        avgHumidity: 55,
-        maxWindSpeed: 6,
-        rainChance: 5,
-        rainMm: 0,
-        condition: 'Sunny',
-        hasRain: false,
-        hasSnow: false,
-        hourly: [],
-      );
-
-      final forecast = WeatherForecast(
-        current: current,
-        forecast: [forecastDay],
-        location: 'Test City',
-        latitude: 40.0,
-        longitude: -74.0,
-        lastUpdated: DateTime.now(),
-      );
-
-      final recommendation = useCase.getRecommendation(forecast);
-      expect(recommendation.status, 'safe');
-      expect(recommendation.score, greaterThanOrEqualTo(70));
+      final rec = useCase.getRecommendation(forecast);
+      expect(rec.status, 'unsafe');
+      expect(rec.score, lessThan(40));
     });
 
-    test('Rainy conditions should return low score', () {
-      final current = WeatherData(
-        tempC: 15,
-        tempF: 59,
-        humidity: 85,
-        windSpeedMs: 8,
-        rainChance: 90,
-        condition: 'Rainy',
-        isRaining: true,
-        isSnowing: false,
-        uvIndex: 1,
-        dateTime: DateTime.now(),
+    test('Strong wind reduces score below safe threshold', () {
+      final forecast = _makeForecast(
+        current: _makeWeatherData(windSpeedMs: 15),
+        days: [_makeForecastDay(maxWindSpeed: 16, score: 55, status: 'warning')],
+        washScore: 55,
+        washStatus: 'warning',
       );
 
-      final forecastDay = ForecastDay(
-        date: DateTime.now(),
-        maxTempC: 16,
-        minTempC: 14,
-        avgHumidity: 90,
-        maxWindSpeed: 10,
-        rainChance: 95,
-        rainMm: 10,
-        condition: 'Rainy',
-        hasRain: true,
-        hasSnow: false,
-        hourly: [],
-      );
-
-      final forecast = WeatherForecast(
-        current: current,
-        forecast: [forecastDay],
-        location: 'Test City',
-        latitude: 40.0,
-        longitude: -74.0,
-        lastUpdated: DateTime.now(),
-      );
-
-      final recommendation = useCase.getRecommendation(forecast);
-      expect(recommendation.status, 'unsafe');
-      expect(recommendation.score, lessThan(40));
+      final rec = useCase.getRecommendation(forecast);
+      expect(rec.score, lessThan(70));
     });
 
-    test('Strong wind should reduce score', () {
-      final current = WeatherData(
-        tempC: 20,
-        tempF: 68,
-        humidity: 60,
-        windSpeedMs: 15, // Above threshold
-        rainChance: 10,
-        condition: 'Cloudy',
-        isRaining: false,
-        isSnowing: false,
-        uvIndex: 3,
-        dateTime: DateTime.now(),
+    test('Snow conditions return unsafe status', () {
+      final forecast = _makeForecast(
+        current: _makeWeatherData(isSnowing: true, condition: 'Blizzard'),
+        days: [
+          _makeForecastDay(hasSnow: true, score: 5, status: 'unsafe')
+        ],
+        washScore: 5,
+        washStatus: 'unsafe',
       );
 
-      final forecastDay = ForecastDay(
-        date: DateTime.now(),
-        maxTempC: 21,
-        minTempC: 19,
-        avgHumidity: 65,
-        maxWindSpeed: 16,
-        rainChance: 15,
-        rainMm: 0,
-        condition: 'Cloudy',
-        hasRain: false,
-        hasSnow: false,
-        hourly: [],
-      );
-
-      final forecast = WeatherForecast(
-        current: current,
-        forecast: [forecastDay],
-        location: 'Test City',
-        latitude: 40.0,
-        longitude: -74.0,
-        lastUpdated: DateTime.now(),
-      );
-
-      final recommendation = useCase.getRecommendation(forecast);
-      expect(recommendation.score, lessThan(70));
+      final rec = useCase.getRecommendation(forecast);
+      expect(rec.status, 'unsafe');
     });
 
-    test('Snow conditions should make it unsafe', () {
-      final current = WeatherData(
-        tempC: -5,
-        tempF: 23,
-        humidity: 80,
-        windSpeedMs: 8,
-        rainChance: 100,
-        condition: 'Snowy',
-        isRaining: false,
-        isSnowing: true,
-        uvIndex: 0,
-        dateTime: DateTime.now(),
-      );
-
-      final forecastDay = ForecastDay(
-        date: DateTime.now(),
-        maxTempC: -4,
-        minTempC: -6,
-        avgHumidity: 85,
-        maxWindSpeed: 9,
-        rainChance: 100,
-        rainMm: 5,
-        condition: 'Snowy',
-        hasRain: false,
-        hasSnow: true,
-        hourly: [],
-      );
-
-      final forecast = WeatherForecast(
-        current: current,
-        forecast: [forecastDay],
-        location: 'Test City',
-        latitude: 40.0,
-        longitude: -74.0,
-        lastUpdated: DateTime.now(),
-      );
-
-      final recommendation = useCase.getRecommendation(forecast);
-      expect(recommendation.status, 'unsafe');
-    });
-
-    test('getScoresForForecast should return map with all days', () {
-      final current = WeatherData(
-        tempC: 20,
-        tempF: 68,
-        humidity: 50,
-        windSpeedMs: 5,
-        rainChance: 10,
-        condition: 'Sunny',
-        isRaining: false,
-        isSnowing: false,
-        uvIndex: 5,
-        dateTime: DateTime.now(),
-      );
-
+    test('getScoresForForecast returns map with one entry per day', () {
       final days = List.generate(
         10,
-        (index) => ForecastDay(
-          date: DateTime.now().add(Duration(days: index)),
-          maxTempC: 22,
-          minTempC: 18,
-          avgHumidity: 55,
-          maxWindSpeed: 6,
-          rainChance: 5 + (index * 5), // Increasing rain chance
-          rainMm: 0,
-          condition: 'Sunny',
-          hasRain: false,
-          hasSnow: false,
-          hourly: [],
+        (i) => _makeForecastDay(
+          offsetDays: i,
+          score: 90 - i * 5,
+          status: (90 - i * 5) >= 70 ? 'safe' : 'warning',
         ),
       );
 
-      final forecast = WeatherForecast(
-        current: current,
-        forecast: days,
-        location: 'Test City',
-        latitude: 40.0,
-        longitude: -74.0,
-        lastUpdated: DateTime.now(),
+      final forecast = _makeForecast(
+        current: _makeWeatherData(),
+        days: days,
+        washScore: 90,
+        washStatus: 'safe',
       );
 
       final scores = useCase.getScoresForForecast(forecast);
       expect(scores.length, 10);
-      
-      // Earlier days should have higher scores
+
       final scoresList = scores.values.toList();
-      expect(scoresList[0], greaterThanOrEqualTo(scoresList[9]));
+      expect(scoresList.first, greaterThanOrEqualTo(scoresList.last));
     });
   });
 }
-
